@@ -1,0 +1,47 @@
+@import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css');
+
+:root {
+  --bg-primary: #F9F7F2;
+  --bg-card: #EBE6DE;
+  --text-dark: #4A4238;
+  --text-light: #968F85;
+  --accent: #8B5E3C;
+  --accent-dark: #281814;
+  --border: #DED7C9;
+  --shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  --radius-lg: 32px;
+  --radius-md: 20px;
+  --radius-sm: 16px;
+  --sidebar-width: 280px;
+  --font-family: 'Vazirmatn', system-ui, 'Segoe UI', Tahoma, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-primary);
+  color: var(--text-dark);
+  direction: rtl;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+/* اسکرول بار سفارشی */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 10px;
+}
