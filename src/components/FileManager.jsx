@@ -2,247 +2,320 @@ import { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
 
 const CATEGORIES = [
-  { id: 'Music', label: '🎵 موسیقی', folder: 'music' },
-  { id: 'Meditation', label: '🧘 مراقبه', folder: 'meditation' },
-  { id: 'Sleep', label: '😴 خواب', folder: 'sleep' },
-  { id: 'Kid', label: '🧸 کودک', folder: 'kid' },
+  { id: 'Music',      label: 'موسیقی',  icon: '♪' },
+  { id: 'Meditation', label: 'مراقبه',  icon: '◎' },
+  { id: 'Sleep',      label: 'خواب',    icon: '◗' },
+  { id: 'Kid',        label: 'کودک',    icon: '✦' },
 ];
+
+const sx = {
+  input: {
+    width: '100%', padding: '12px 16px',
+    background: '#fff', border: '1.5px solid #DED7C9',
+    borderRadius: 20, fontSize: 13, color: '#281814',
+    outline: 'none', direction: 'rtl',
+    fontFamily: 'Vazirmatn, Tahoma, sans-serif',
+  },
+  label: {
+    fontSize: 11, fontWeight: 600, color: '#968F85',
+    display: 'block', marginBottom: 6, textAlign: 'right',
+    fontFamily: 'Vazirmatn, Tahoma, sans-serif',
+  },
+  font: { fontFamily: 'Vazirmatn, Tahoma, sans-serif' },
+};
+
+function FilePill({ label, icon, accept, file, onChange }) {
+  const id = `fp-${label}`;
+  return (
+    <label htmlFor={id} style={{ cursor: 'pointer', flexShrink: 0 }}>
+      <input id={id} type="file" accept={accept} style={{ display: 'none' }}
+        onChange={(e) => onChange(e.target.files[0])} />
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '9px 16px', borderRadius: 40, transition: 'all .2s',
+        background: file ? '#281814' : '#fff',
+        border: `1.5px solid ${file ? '#281814' : '#DED7C9'}`,
+      }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        <span style={{ ...sx.font, fontSize: 12, fontWeight: 600,
+          color: file ? '#fff' : '#968F85', whiteSpace: 'nowrap' }}>
+          {file ? file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '') : label}
+        </span>
+      </div>
+    </label>
+  );
+}
 
 export default function FileManager() {
   const [activeCategory, setActiveCategory] = useState('Music');
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [files, setFiles]         = useState([]);
+  const [loading, setLoading]     = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [selectedAlbum, setSelectedAlbum] = useState(''); // برای فیلتر
-  const [albumsList, setAlbumsList] = useState([]); // لیست آلبوم‌های موجود در دسته
+  const [selectedAlbum, setSelectedAlbum] = useState(null);
+  const [albumsList, setAlbumsList]       = useState([]);
+  const [groupedAlbums, setGroupedAlbums] = useState([]);
 
-  const [formData, setFormData] = useState({
-    title: '', subtitle: '', description: '', album: '', duration: ''
-  });
+  // form state
+  const [title, setTitle]       = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [duration, setDuration] = useState('');
+  const [album, setAlbum]       = useState('');
+  const [newAlbum, setNewAlbum] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [audioFile, setAudioFile] = useState(null);
-  const [previewImageUrl, setPreviewImageUrl] = useState(null);
-  const [previewAudioUrl, setPreviewAudioUrl] = useState(null);
 
-  // دریافت لیست فایل‌ها از سرور
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/songs?category=${activeCategory}&limit=100`);
-      const songs = res.data.songs || [];
+      const res = await api.get('/admin/songs');
+      const all = Array.isArray(res.data) ? res.data : (res.data.songs || []);
+      const songs = all.filter(s => s.category === activeCategory);
       setFiles(songs);
-      // استخراج لیست آلبوم‌های منحصربه‌فرد برای فیلتر
-      const albums = [...new Set(songs.map(s => s.album).filter(Boolean))];
-      setAlbumsList(albums);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      const names = [...new Set(songs.map(s => s.album).filter(Boolean))];
+      setAlbumsList(names);
+      const g = {};
+      songs.forEach(s => {
+        const n = s.album || 'تک‌آهنگ‌ها';
+        if (!g[n]) g[n] = { id: n, title: n, coverUrl: s.imageUrl, tracks: [] };
+        g[n].tracks.push(s);
+      });
+      setGroupedAlbums(Object.values(g));
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => {
     fetchFiles();
-    setSelectedAlbum(''); // ریست فیلتر با تغییر دسته
+    setSelectedAlbum(null);
+    setAlbum(''); setNewAlbum(false);
   }, [activeCategory]);
 
-  // فیلتر فایل‌ها بر اساس آلبوم انتخاب شده
-  const filteredFiles = selectedAlbum ? files.filter(f => f.album === selectedAlbum) : files;
-
-  // پیش‌نمایش تصویر و صدا
-  useEffect(() => {
-    if (imageFile) {
-      const url = URL.createObjectURL(imageFile);
-      setPreviewImageUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else setPreviewImageUrl(null);
-  }, [imageFile]);
-
-  useEffect(() => {
-    if (audioFile) {
-      const url = URL.createObjectURL(audioFile);
-      setPreviewAudioUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else setPreviewAudioUrl(null);
-  }, [audioFile]);
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('آیا از حذف این آیتم اطمینان دارید؟')) return;
-    try {
-      await api.delete(`/admin/songs/${id}`);
-      fetchFiles();
-    } catch (err) {
-      alert('خطا در حذف');
-    }
+  const resetForm = () => {
+    setTitle(''); setSubtitle(''); setDuration(''); setAlbum('');
+    setNewAlbum(false); setImageFile(null); setAudioFile(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!imageFile || !audioFile) {
-      alert('لطفاً تصویر و فایل صوتی را انتخاب کنید');
-      return;
-    }
+    if (!imageFile || !audioFile) { alert('لطفاً تصویر و فایل صوتی را انتخاب کنید'); return; }
     const data = new FormData();
-    data.append('image', imageFile);
-    data.append('audio', audioFile);
+    data.append('image', imageFile); data.append('audio', audioFile);
     data.append('category', activeCategory);
-    for (let key in formData) {
-      if (formData[key]) data.append(key, formData[key]);
-    }
+    if (title)    data.append('title', title);
+    if (subtitle) data.append('subtitle', subtitle);
+    if (album)    data.append('album', album);
+    if (duration) data.append('duration', duration);
     setUploading(true);
     try {
-      await api.post('/admin/songs', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      alert('فایل با موفقیت آپلود شد');
-      setFormData({ title: '', subtitle: '', description: '', album: '', duration: '' });
-      setImageFile(null);
-      setAudioFile(null);
-      fetchFiles();
+      await api.post('/admin/songs', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      resetForm(); fetchFiles();
     } catch (err) {
-      alert('خطا در آپلود: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setUploading(false);
-    }
+      alert('خطا: ' + (err.response?.data?.message || err.message));
+    } finally { setUploading(false); }
   };
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleDelete = async (id) => {
+    if (!window.confirm('آیا از حذف اطمینان دارید؟')) return;
+    try { await api.delete(`/admin/songs/${id}`); fetchFiles(); }
+    catch { alert('خطا در حذف'); }
   };
+
+  const filteredFiles = selectedAlbum
+    ? files.filter(f => f.album === selectedAlbum)
+    : files;
+
+  const catLabel = CATEGORIES.find(c => c.id === activeCategory)?.label;
 
   return (
-    <div className="manager-container">
-      <h2>📁 مدیریت فایل‌ها</h2>
+    <div style={{ ...sx.font, maxWidth: 1080, margin: '0 auto', padding: '28px 20px', direction: 'rtl' }}>
 
-      {/* تب‌های دسته‌بندی */}
-      <div className="category-tabs">
-        {CATEGORIES.map(cat => (
-          <button
-            key={cat.id}
-            className={`tab-btn ${activeCategory === cat.id ? 'active' : ''}`}
-            onClick={() => setActiveCategory(cat.id)}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* فیلتر آلبوم (در صورت وجود آلبوم‌ها) */}
-      {albumsList.length > 0 && (
-        <div className="album-filter" style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-dark)' }}>فیلتر بر اساس آلبوم:</span>
-          <button className={`filter-album-btn ${selectedAlbum === '' ? 'active' : ''}`} onClick={() => setSelectedAlbum('')}>همه</button>
-          {albumsList.map(alb => (
-            <button key={alb} className={`filter-album-btn ${selectedAlbum === alb ? 'active' : ''}`} onClick={() => setSelectedAlbum(alb)}>
-              {alb}
+      {/* ── Header + category tabs ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h2 style={{ ...sx.font, fontSize: 20, fontWeight: 700, margin: 0, color: '#281814' }}>مدیریت فایل‌ها</h2>
+          <p style={{ ...sx.font, fontSize: 12, color: '#968F85', marginTop: 3 }}>محتوای صوتی اپ</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {CATEGORIES.map(c => (
+            <button key={c.id} onClick={() => setActiveCategory(c.id)} style={{
+              ...sx.font, padding: '8px 18px', borderRadius: 40, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, transition: 'all .2s',
+              background: activeCategory === c.id ? '#281814' : 'transparent',
+              color: activeCategory === c.id ? '#fff' : '#968F85',
+              outline: activeCategory === c.id ? 'none' : '1.5px solid #DED7C9',
+            }}>
+              {c.icon} {c.label}
             </button>
           ))}
         </div>
-      )}
+      </div>
 
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        {/* فرم آپلود */}
-        <div className="add-song-section" style={{ flex: 2 }}>
-          <h3>➕ افزودن فایل جدید در {CATEGORIES.find(c => c.id === activeCategory)?.label}</h3>
-          <form onSubmit={handleSubmit} className="song-form" encType="multipart/form-data">
-            <div className="form-field">
-              <label>عنوان (Title) *</label>
-              <input name="title" placeholder="مثال: آرامش شب" value={formData.title} onChange={handleChange} required />
+      {/* ── Upload form ── */}
+      <form onSubmit={handleSubmit}>
+        <div style={{ background: '#EBE6DE', borderRadius: 32, padding: '24px 28px', marginBottom: 28 }}>
+          <p style={{ ...sx.label, marginBottom: 18, fontSize: 12 }}>
+            افزودن قطعه جدید به {catLabel}
+          </p>
+
+          {/* Row 1: title / subtitle / duration */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ flex: 2, minWidth: 140 }}>
+              <label style={sx.label}>عنوان *</label>
+              <input value={title} onChange={e => setTitle(e.target.value)}
+                placeholder="مثال: آرامش شب" required style={sx.input} />
             </div>
-            <div className="form-field">
-              <label>زیر عنوان (Subtitle)</label>
-              <input name="subtitle" placeholder="مثال: ۱۰ دقیقه" value={formData.subtitle} onChange={handleChange} />
+            <div style={{ flex: 2, minWidth: 140 }}>
+              <label style={sx.label}>زیرعنوان</label>
+              <input value={subtitle} onChange={e => setSubtitle(e.target.value)}
+                placeholder="مثال: ۱۰ دقیقه" style={sx.input} />
             </div>
-            <div className="form-field full-width">
-              <label>توضیحات (Description)</label>
-              <textarea name="description" placeholder="توضیحات کامل..." value={formData.description} onChange={handleChange} rows="3" />
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <label style={sx.label}>مدت (ثانیه)</label>
+              <input type="number" value={duration} onChange={e => setDuration(e.target.value)}
+                placeholder="۶۰۰" style={sx.input} />
             </div>
-            <div className="form-field">
-              <label>آلبوم (Album) * برای گروه‌بندی در اپ</label>
-              <input name="album" placeholder="نام آلبوم (مثلاً: موسیقی آرام)" value={formData.album} onChange={handleChange} required />
-              <small>در اپ، فایل‌ها بر اساس همین آلبوم گروه‌بندی می‌شوند.</small>
+          </div>
+
+          {/* Row 2: album / files / submit */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+
+            {/* Album chips */}
+            <div style={{ flex: 2, minWidth: 200 }}>
+              <label style={sx.label}>آلبوم *</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: newAlbum ? 10 : 0 }}>
+                {albumsList.map(a => (
+                  <button key={a} type="button"
+                    onClick={() => { setAlbum(a); setNewAlbum(false); }}
+                    style={{
+                      ...sx.font, padding: '7px 15px', borderRadius: 40, border: 'none',
+                      cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'all .2s',
+                      background: album === a && !newAlbum ? '#281814' : '#fff',
+                      color: album === a && !newAlbum ? '#fff' : '#281814',
+                    }}>{a}</button>
+                ))}
+                <button type="button" onClick={() => { setNewAlbum(!newAlbum); setAlbum(''); }}
+                  style={{
+                    ...sx.font, padding: '7px 15px', borderRadius: 40, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600, transition: 'all .2s',
+                    background: newAlbum ? '#8B5E3C' : 'transparent',
+                    color: newAlbum ? '#fff' : '#968F85',
+                    border: '1.5px dashed #DED7C9',
+                  }}>+ آلبوم جدید</button>
+              </div>
+              {newAlbum && (
+                <input value={album} onChange={e => setAlbum(e.target.value)}
+                  placeholder="نام آلبوم جدید" required autoFocus
+                  style={{ ...sx.input, border: '1.5px solid #8B5E3C' }} />
+              )}
             </div>
-            <div className="form-field">
-              <label>مدت زمان (Duration) - ثانیه</label>
-              <input name="duration" type="number" placeholder="مثال: 600" value={formData.duration} onChange={handleChange} />
+
+            {/* File pills */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <FilePill label="تصویر کاور" icon="🖼" accept="image/*" file={imageFile} onChange={setImageFile} />
+              <FilePill label="فایل صوتی"  icon="🎵" accept="audio/*" file={audioFile} onChange={setAudioFile} />
             </div>
-            <div className="form-field">
-              <label>تصویر کاور (Image) *</label>
-              <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} required />
-              <small>حداقل ابعاد پیشنهادی: ۵۰۰×۵۰۰ پیکسل</small>
-            </div>
-            <div className="form-field">
-              <label>فایل صوتی (Audio) *</label>
-              <input type="file" accept="audio/*" onChange={(e) => setAudioFile(e.target.files[0])} required />
-              <small>فرمت‌های مجاز: MP3, M4A, WAV</small>
-            </div>
-            <button type="submit" disabled={uploading} className="full-width">
-              {uploading ? 'در حال آپلود...' : 'آپلود و ذخیره'}
+
+            {/* Submit */}
+            <button type="submit" disabled={uploading} style={{
+              ...sx.font, padding: '13px 28px', borderRadius: 40, border: 'none', cursor: 'pointer',
+              background: uploading ? '#968F85' : '#281814', color: '#fff',
+              fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+              alignSelf: 'flex-end', flexShrink: 0, transition: 'opacity .2s',
+            }}>
+              {uploading ? 'در حال آپلود…' : 'آپلود و ذخیره ↑'}
             </button>
-          </form>
+          </div>
         </div>
+      </form>
 
-        {/* پیش‌نمایش (دقیقاً شبیه کارت UniversalMeditationList) */}
-        <div className="preview-section" style={{ flex: 1.2, background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', alignSelf: 'flex-start' }}>
-          <h3 style={{ marginBottom: '1rem' }}>🔍 پیش‌نمایش در اپ</h3>
-          <div className="preview-card" style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', padding: '1rem' }}>
-              {/* تصویر در سمت راست */}
-              <img
-                src={previewImageUrl || 'https://via.placeholder.com/80x80?text=تصویر'}
-                alt="preview"
-                style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover', marginRight: '1rem' }}
-              />
-              {/* محتوای متنی در سمت چپ (راست‌چین) */}
-              <div style={{ flex: 1, textAlign: 'right' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '1rem', color: 'var(--text-dark)' }}>{formData.title || 'عنوان نمونه'}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                  {formData.subtitle || 'زیرعنوان نمونه'}
-                  {formData.album && <span style={{ marginRight: '8px', fontSize: '0.7rem', color: '#aaa' }}>({formData.album})</span>}
-                </div>
-                {previewAudioUrl && (
-                  <audio controls src={previewAudioUrl} style={{ width: '100%', marginTop: '0.5rem', height: '36px' }} />
-                )}
-                {!previewAudioUrl && <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '0.5rem' }}>فایل صوتی انتخاب نشده</div>}
-                {/* آیکون بوکمارک برای شبیه‌سازی */}
-                <div style={{ textAlign: 'left', marginTop: '0.3rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#666' }}>🔖 ذخیره (نماد)</span>
-                </div>
-              </div>
-            </div>
-            {formData.description && (
-              <div style={{ padding: '0 1rem 1rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: 'var(--text-dark)', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
-                {formData.description.length > 80 ? formData.description.substring(0, 80) + '...' : formData.description}
-              </div>
+      {/* ── Albums horizontal strip ── */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {selectedAlbum && (
+              <button onClick={() => setSelectedAlbum(null)} style={{
+                ...sx.font, padding: '6px 14px', borderRadius: 40, cursor: 'pointer',
+                background: 'none', border: '1.5px solid #DED7C9', fontSize: 11, color: '#968F85',
+              }}>← همه</button>
             )}
+            <span style={{ ...sx.font, fontSize: 13, fontWeight: 700, color: '#281814' }}>
+              {selectedAlbum || `آلبوم‌های ${catLabel}`}
+            </span>
           </div>
-          <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-light)', textAlign: 'center' }}>
-            * پیش‌نمایش بر اساس فایل‌های انتخاب شده در فرم
-          </div>
+          <span style={{ ...sx.font, fontSize: 11, color: '#968F85' }}>{groupedAlbums.length} آلبوم</span>
         </div>
-      </div>
 
-      {/* لیست فایل‌های موجود با نمایش آلبوم */}
-      <div className="files-list" style={{ marginTop: '2rem' }}>
-        <h3>📋 لیست فایل‌های موجود در {CATEGORIES.find(c => c.id === activeCategory)?.label}
-          {selectedAlbum && <span style={{ fontSize: '0.9rem', marginRight: '1rem' }}> (آلبوم: {selectedAlbum})</span>}
-        </h3>
-        {loading && <div>در حال بارگذاری...</div>}
-        {!loading && filteredFiles.length === 0 && <p>هیچ فایلی در این دسته/آلبوم یافت نشد.</p>}
-        <div className="songs-grid">
-          {filteredFiles.map(song => (
-            <div key={song.id} className="song-card">
-              <img src={song.imageUrl} alt={song.title} className="song-cover" />
-              <div className="song-info">
-                <div className="song-title">{song.title}</div>
-                {song.subtitle && <div className="song-subtitle">{song.subtitle}</div>}
-                {song.album && <div className="song-album" style={{ fontSize: '0.7rem', color: 'var(--accent)', marginBottom: '0.3rem' }}>آلبوم: {song.album}</div>}
-                <audio controls src={song.audioUrl} className="song-audio" />
-                <button onClick={() => handleDelete(song.id)} className="delete-btn">🗑 حذف</button>
+        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 4 }}>
+          {loading && <p style={{ ...sx.font, color: '#968F85' }}>در حال بارگذاری…</p>}
+          {!loading && groupedAlbums.map(alb => (
+            <div key={alb.id}
+              onClick={() => setSelectedAlbum(alb.title === selectedAlbum ? null : alb.title)}
+              style={{
+                flexShrink: 0, width: 170, borderRadius: 28, overflow: 'hidden', cursor: 'pointer',
+                border: `2px solid ${alb.title === selectedAlbum ? '#8B5E3C' : 'transparent'}`,
+                transition: 'all .2s',
+                transform: alb.title === selectedAlbum ? 'translateY(-3px)' : 'none',
+              }}
+            >
+              <div style={{ height: 120, background: '#C4B8AD', position: 'relative', overflow: 'hidden' }}>
+                {alb.coverUrl && <img src={alb.coverUrl} alt={alb.title}
+                  style={{ width: '100%', height: '110%', objectFit: 'cover', position: 'absolute', top: 0 }} />}
+                {alb.title === selectedAlbum && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(139,94,60,.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✓</div>
+                )}
+              </div>
+              <div style={{ padding: '10px 14px 12px', background: '#EBE6DE' }}>
+                <p style={{ ...sx.font, margin: 0, fontWeight: 700, fontSize: 13, color: '#281814', textAlign: 'right' }}>{alb.title}</p>
+                <p style={{ ...sx.font, margin: '3px 0 0', fontSize: 10, color: '#968F85', textAlign: 'right' }}>{alb.tracks.length} قطعه</p>
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Tracks list ── */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ ...sx.font, fontSize: 13, fontWeight: 700, color: '#281814' }}>
+            {selectedAlbum ? `قطعات — ${selectedAlbum}` : 'همه قطعات'}
+          </span>
+          <span style={{ ...sx.font, fontSize: 11, color: '#968F85' }}>{filteredFiles.length} قطعه</span>
+        </div>
+
+        {!loading && filteredFiles.length === 0 && (
+          <p style={{ ...sx.font, color: '#968F85', textAlign: 'right' }}>قطعه‌ای یافت نشد.</p>
+        )}
+
+        {filteredFiles.map(song => (
+          <div key={song.id} style={{
+            display: 'flex', alignItems: 'center',
+            background: '#EBE6DE', borderRadius: 20, marginBottom: 8, overflow: 'hidden',
+          }}>
+            <div style={{ width: 64, height: 64, flexShrink: 0, background: '#C4B8AD', position: 'relative', overflow: 'hidden' }}>
+              {song.imageUrl
+                ? <img src={song.imageUrl} alt={song.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>♪</div>
+              }
+            </div>
+
+            <div style={{ flex: 1, padding: '10px 16px', direction: 'rtl', textAlign: 'right' }}>
+              <p style={{ ...sx.font, margin: 0, fontWeight: 700, fontSize: 13, color: '#281814' }}>{song.title}</p>
+              <p style={{ ...sx.font, margin: '3px 0 0', fontSize: 11, color: '#968F85' }}>
+                {[song.subtitle, song.album].filter(Boolean).join('  ·  ')}
+              </p>
+            </div>
+
+            <audio controls src={song.audioUrl}
+              style={{ height: 32, width: 200, flexShrink: 0, margin: '0 10px', opacity: .85 }} />
+
+            <button onClick={() => handleDelete(song.id)} style={{
+              ...sx.font, padding: '6px 16px', borderRadius: 40, cursor: 'pointer', margin: '0 12px',
+              background: 'none', border: '1.5px solid #DED7C9', fontSize: 11, color: '#c0392b',
+              transition: 'all .2s', flexShrink: 0,
+            }}>حذف</button>
+          </div>
+        ))}
       </div>
     </div>
   );
