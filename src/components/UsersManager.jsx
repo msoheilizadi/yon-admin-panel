@@ -1,4 +1,4 @@
-// UsersManager.jsx - نسخه نهایی بدون ایموجی و بدون فیلدهای زبان و زمان یادآوری
+// UsersManager.jsx - with password change feature
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../api/axiosConfig';
@@ -86,6 +86,7 @@ export default function UsersManager() {
       name: user.name || '',
       email: user.email || '',
       mobile: user.mobile || '',
+      password: '',          // ← new: empty by default
     });
     setEditError('');
     setShowEditModal(true);
@@ -108,12 +109,19 @@ export default function UsersManager() {
       setEditError('نام و ایمیل الزامی هستند.');
       return;
     }
+    // ← new: validate password only if provided
+    if (editingUser.password.trim() && editingUser.password.trim().length < 6) {
+      setEditError('رمز عبور باید حداقل ۶ کاراکتر باشد.');
+      return;
+    }
     setUpdating(true);
     try {
       await api.put(`/admin/users/${editingUser.id}`, {
         name: editingUser.name,
         email: editingUser.email,
         mobile: editingUser.mobile,
+        // ← new: only send password if admin typed something
+        ...(editingUser.password.trim() ? { password: editingUser.password.trim() } : {}),
       });
       closeEditModal();
       fetchUsers();
@@ -193,6 +201,7 @@ export default function UsersManager() {
         </button>
       </div>
 
+      {/* ── Create Modal ── */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={closeCreateModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -202,16 +211,34 @@ export default function UsersManager() {
             </div>
             {error && <div className="error-message">{error}</div>}
             <form onSubmit={handleCreateUser} className="user-form-modal">
-              <div className="form-field"><label>نام کامل *</label><input type="text" name="name" value={newUser.name} onChange={handleNewUserChange} required /></div>
-              <div className="form-field"><label>ایمیل *</label><input type="email" name="email" value={newUser.email} onChange={handleNewUserChange} required /></div>
-              <div className="form-field"><label>رمز عبور * (حداقل ۶ کاراکتر)</label><input type="password" name="password" value={newUser.password} onChange={handleNewUserChange} required /></div>
-              <div className="form-field"><label>نقش</label><select name="role" value={newUser.role} onChange={handleNewUserChange}><option value="user">کاربر عادی</option><option value="admin">ادمین</option></select></div>
-              <button type="submit" disabled={creating} className="submit-user-btn">{creating ? 'در حال ایجاد...' : 'ایجاد کاربر'}</button>
+              <div className="form-field">
+                <label>نام کامل *</label>
+                <input type="text" name="name" value={newUser.name} onChange={handleNewUserChange} required />
+              </div>
+              <div className="form-field">
+                <label>ایمیل *</label>
+                <input type="email" name="email" value={newUser.email} onChange={handleNewUserChange} required />
+              </div>
+              <div className="form-field">
+                <label>رمز عبور * (حداقل ۶ کاراکتر)</label>
+                <input type="password" name="password" value={newUser.password} onChange={handleNewUserChange} required />
+              </div>
+              <div className="form-field">
+                <label>نقش</label>
+                <select name="role" value={newUser.role} onChange={handleNewUserChange}>
+                  <option value="user">کاربر عادی</option>
+                  <option value="admin">ادمین</option>
+                </select>
+              </div>
+              <button type="submit" disabled={creating} className="submit-user-btn">
+                {creating ? 'در حال ایجاد...' : 'ایجاد کاربر'}
+              </button>
             </form>
           </div>
         </div>
       )}
 
+      {/* ── Edit Modal ── */}
       {showEditModal && editingUser && (
         <div className="modal-overlay" onClick={closeEditModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -221,15 +248,41 @@ export default function UsersManager() {
             </div>
             {editError && <div className="error-message">{editError}</div>}
             <form onSubmit={handleUpdateUser} className="user-form-modal">
-              <div className="form-field"><label>نام کامل *</label><input type="text" name="name" value={editingUser.name} onChange={handleEditChange} required /></div>
-              <div className="form-field"><label>ایمیل *</label><input type="email" name="email" value={editingUser.email} onChange={handleEditChange} required /></div>
-              <div className="form-field"><label>شماره موبایل</label><input type="text" name="mobile" value={editingUser.mobile || ''} onChange={handleEditChange} /></div>
-              <button type="submit" disabled={updating} className="submit-user-btn">{updating ? 'در حال ذخیره...' : 'ذخیره تغییرات'}</button>
+              <div className="form-field">
+                <label>نام کامل *</label>
+                <input type="text" name="name" value={editingUser.name} onChange={handleEditChange} required />
+              </div>
+              <div className="form-field">
+                <label>ایمیل *</label>
+                <input type="email" name="email" value={editingUser.email} onChange={handleEditChange} required />
+              </div>
+              <div className="form-field">
+                <label>شماره موبایل</label>
+                <input type="text" name="mobile" value={editingUser.mobile || ''} onChange={handleEditChange} />
+              </div>
+
+              {/* ── NEW: password change field ── */}
+              <div className="form-field">
+                <label>رمز عبور جدید</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={editingUser.password || ''}
+                  onChange={handleEditChange}
+                  placeholder="خالی بگذارید تا رمز تغییر نکند"
+                />
+                <small>حداقل ۶ کاراکتر — در صورت خالی بودن، رمز فعلی حفظ می‌شود</small>
+              </div>
+
+              <button type="submit" disabled={updating} className="submit-user-btn">
+                {updating ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+              </button>
             </form>
           </div>
         </div>
       )}
 
+      {/* ── Users Table ── */}
       <div className="users-table-wrapper">
         <table className="users-table">
           <thead>

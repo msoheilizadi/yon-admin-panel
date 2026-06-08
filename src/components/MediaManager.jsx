@@ -1,6 +1,7 @@
 // src/components/MediaManager.jsx
-import { useEffect, useState } from 'react';
-import api from '../api/axiosConfig';
+import { useEffect, useState } from "react";
+import api from "../api/axiosConfig";
+import AudioPlayer from "./AudioPlayer";
 
 export default function MediaManager() {
   const [files, setFiles] = useState([]);
@@ -8,15 +9,15 @@ export default function MediaManager() {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: 'slider',
-    type: 'image',
+    title: "",
+    description: "",
+    category: "slider",
+    type: "image",
   });
 
   const fetchFiles = async () => {
     try {
-      const res = await api.get('/admin/media');
+      const res = await api.get("/admin/media");
       setFiles(res.data);
     } catch (err) {
       console.error(err);
@@ -31,45 +32,50 @@ export default function MediaManager() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) return alert('لطفاً فایل را انتخاب کنید');
+    if (!selectedFile) return alert("لطفاً فایل را انتخاب کنید");
 
     const data = new FormData();
-    data.append('file', selectedFile);
-    data.append('title', formData.title);
-    data.append('description', formData.description);
-    data.append('category', formData.category);
-    data.append('type', formData.type);
+    data.append("file", selectedFile);
+    data.append("title", formData.title);
+    data.append("description", formData.description);
+    data.append("category", formData.category);
+    data.append("type", formData.type);
 
     setUploading(true);
     try {
-      await api.post('/admin/media', data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      await api.post("/admin/media", data, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-      alert('فایل با موفقیت آپلود شد');
+      alert("فایل با موفقیت آپلود شد");
       setSelectedFile(null);
-      setFormData({ title: '', description: '', category: 'slider', type: 'image' });
+      setFormData({
+        title: "",
+        description: "",
+        category: "slider",
+        type: "image",
+      });
       fetchFiles();
     } catch (err) {
-      alert('خطا در آپلود: ' + (err.response?.data?.message || err.message));
+      alert("خطا در آپلود: " + (err.response?.data?.message || err.message));
     } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('آیا از حذف این فایل اطمینان دارید؟')) return;
+    if (!confirm("آیا از حذف این فایل اطمینان دارید؟")) return;
     try {
       await api.delete(`/admin/media/${id}`);
       fetchFiles();
     } catch (err) {
-      alert('خطا در حذف');
+      alert("خطا در حذف");
     }
   };
 
   if (loading) return <div>در حال بارگذاری...</div>;
 
   return (
-    <div className="admin-container" style={{ marginTop: '2rem' }}>
+    <div className="admin-container" style={{ marginTop: "2rem" }}>
       <div className="add-song-section">
         <h2>📁 آپلود فایل جدید</h2>
         <form onSubmit={handleSubmit} className="song-form">
@@ -77,18 +83,24 @@ export default function MediaManager() {
             type="text"
             placeholder="عنوان"
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, title: e.target.value })
+            }
             required
           />
           <input
             type="text"
             placeholder="توضیحات (اختیاری)"
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
           />
           <select
             value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, category: e.target.value })
+            }
           >
             <option value="slider">اسلایدر صفحه اصلی</option>
             <option value="music">موسیقی</option>
@@ -113,7 +125,7 @@ export default function MediaManager() {
             required
           />
           <button type="submit" disabled={uploading}>
-            {uploading ? 'در حال آپلود...' : 'آپلود فایل'}
+            {uploading ? "در حال آپلود..." : "آپلود فایل"}
           </button>
         </form>
       </div>
@@ -123,18 +135,23 @@ export default function MediaManager() {
         <div className="songs-grid">
           {files.map((file) => (
             <div key={file.id} className="song-card">
-              {file.type === 'image' && (
+              {file.type === "image" && (
                 <img src={file.url} alt={file.title} className="song-cover" />
               )}
-              {file.type === 'audio' && (
-                <audio controls src={file.url} className="song-audio" />
+              {file.type === "audio" && (
+                <div style={{ padding: "0 0 8px" }}>
+                  <AudioPlayer src={file.url} title={file.title} compact />
+                </div>
               )}
               <div className="song-info">
                 <div className="song-title">{file.title}</div>
                 <div className="song-subtitle">
                   دسته: {file.category} | نوع: {file.type}
                 </div>
-                <button onClick={() => handleDelete(file.id)} className="delete-btn">
+                <button
+                  onClick={() => handleDelete(file.id)}
+                  className="delete-btn"
+                >
                   🗑 حذف
                 </button>
               </div>
